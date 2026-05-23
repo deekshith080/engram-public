@@ -11,4 +11,6 @@ locomo10.json
 # When creating PUBLIC repo, exclude these three files:
 # engram/core/ingestion.py
 # engram/graph/auto_edge.py
-# engram/graph/causal.py
+# engram/graph/causal.py__pycache__
+*.pyc
+*.pyo
