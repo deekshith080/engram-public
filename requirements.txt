@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+networkx
+faiss-cpu
+ollama
+sqlalchemy
+python-jose
+passlib
+bcrypt
+numpy
+sentence-transformers
+torch
+slowapi

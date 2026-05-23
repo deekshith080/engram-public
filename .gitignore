@@ -1,0 +1,14 @@
+# Virtual environment
+.venv
+
+# All databases — never commit
+*.db
+
+# Dataset — licensed, not ours to distribute
+locomo10.json
+
+# Reminder — these are core IP
+# When creating PUBLIC repo, exclude these three files:
+# engram/core/ingestion.py
+# engram/graph/auto_edge.py
+# engram/graph/causal.py
