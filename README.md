@@ -166,6 +166,12 @@ python -m pytest tests/ -v
 Engram is live and callable right now:
 https://web-production-07b0a4.up.railway.app
 
+## Live Demo
+
+**Dashboard:** https://web-production-07b0a4.up.railway.app
+**API:** https://web-production-07b0a4.up.railway.app/v1
+**Interactive docs:** https://web-production-07b0a4.up.railway.app/docs
+
 **Ingest a memory:**
 ```bash
 curl -X POST https://web-production-07b0a4.up.railway.app/v1/ingest \
