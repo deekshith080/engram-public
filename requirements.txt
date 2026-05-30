@@ -12,3 +12,4 @@ numpy
 sentence-transformers
 torch
 slowapi
+rank-bm25

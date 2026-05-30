@@ -1,7 +1,7 @@
 """
 Security properties:
 - Every route requires valid API key
-- Rate limited per IP — 30 requests/minute
+- Rate limited per IP
 - Input sanitized — no SQL injection, no script injection
 - User isolation — each user's memories completely separate
 - Errors never expose internal details
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -25,6 +25,7 @@ from api.models import (
     QueryRequest,
     QueryResponse,
 )
+from engram.core.associative import AssociativeRecall
 from engram.core.ingestion import IngestionPipeline
 from engram.core.memory import MemoryNode, MemoryStatus
 from engram.core.retrieval import RetrievalEngine
@@ -34,16 +35,13 @@ from engram.graph.manager import GraphManager
 from engram.scheduler.decay import DecayScheduler
 from engram.scoring.engine import ScoringConfig
 from engram.utils.sqlite_store import SQLiteStore
+from engram.core.temporal import TemporalReasoner, TimePeriod
+from engram.core.predictive import PredictiveMemory
 
 
 router  = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
-# ---------------------------------------------------------------------------
-# Input sanitization
-# ---------------------------------------------------------------------------
-
-# Only allow safe characters in user_id
 _USER_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_\-\.]{1,128}$')
 
 
@@ -52,10 +50,6 @@ def sanitize_user_id(user_id: str) -> str:
 
     Only alphanumeric characters, hyphens, underscores and dots allowed.
     Prevents path traversal, SQL injection and filesystem attacks.
-
-    Raises
-    ------
-    ValueError if user_id contains invalid characters.
     """
     if not _USER_ID_PATTERN.match(user_id):
         raise ValueError(
@@ -68,18 +62,12 @@ def sanitize_user_id(user_id: str) -> str:
 def sanitize_content(content: str) -> str:
     """Sanitize memory content.
 
-    Strips leading/trailing whitespace.
-    Removes null bytes which can cause issues in databases.
-    Limits to 10,000 characters (enforced by Pydantic too).
+    Strips whitespace. Removes null bytes.
     """
     content = content.strip()
     content = content.replace("\x00", "")
     return content
 
-
-# ---------------------------------------------------------------------------
-# Per-user state
-# ---------------------------------------------------------------------------
 
 class UserMemoryState:
     """Holds all memory state for one user.
@@ -116,10 +104,6 @@ def get_user_state(user_id: str) -> UserMemoryState:
     return _USER_STATES[user_id]
 
 
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
-
 @router.post("/ingest", response_model=IngestResponse)
 @limiter.limit("30/minute")
 async def ingest(
@@ -129,13 +113,17 @@ async def ingest(
 ) -> IngestResponse:
     """Ingest a message into memory for a user.
 
+    Splits the message into atomic memory chunks.
+    Scores each chunk for irreplaceability and significance.
+    Creates semantic and causal edges automatically.
+    Persists to SQLite — survives server restarts.
+
     Rate limit: 30 requests per minute per IP.
     """
     try:
         user_id = sanitize_user_id(body.user_id)
         content = sanitize_content(body.content)
     except ValueError as e:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e))
 
     state  = get_user_state(user_id)
@@ -164,12 +152,14 @@ async def query(
 ) -> QueryResponse:
     """Query relevant memories for a user.
 
+    Uses FAISS semantic search + reconstructive graph retrieval.
+    Returns top-k most relevant memories ranked by relevance.
+
     Rate limit: 60 requests per minute per IP.
     """
     try:
         user_id = sanitize_user_id(body.user_id)
     except ValueError as e:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e))
 
     state   = get_user_state(user_id)
@@ -195,6 +185,56 @@ async def query(
     )
 
 
+@router.post("/recall")
+@limiter.limit("60/minute")
+async def recall(
+    request:  Request,
+    body:     QueryRequest,
+    key_info: dict = Depends(require_api_key),
+) -> dict:
+    """Surface memories through associative cascade.
+
+    Unlike /query which finds semantically similar memories,
+    /recall follows the narrative thread — surfacing memories
+    connected by meaning, causality, and association.
+
+    One query triggers a cascade through the memory graph,
+    following edges and decaying association strength with depth.
+
+    Use /query for factual retrieval.
+    Use /recall for understanding context and narrative.
+
+    Rate limit: 60 requests per minute per IP.
+    """
+    try:
+        user_id = sanitize_user_id(body.user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    state   = get_user_state(user_id)
+    engine  = AssociativeRecall()
+    results = engine.recall(body.query, state.nodes, state.graph, top_k=body.top_k)
+
+    memories = [
+        {
+            "id":                   r.node.id,
+            "content":              r.node.content,
+            "memory_type":          r.node.memory_type.value,
+            "association_strength": r.association_strength,
+            "depth":                r.depth,
+            "path":                 r.path,
+        }
+        for r in results
+    ]
+
+    return {
+        "user_id":  user_id,
+        "query":    body.query,
+        "memories": memories,
+        "count":    len(memories),
+    }
+
+
 @router.post("/decay", response_model=DecayResponse)
 @limiter.limit("10/minute")
 async def decay(
@@ -202,14 +242,16 @@ async def decay(
     body:     DecayRequest,
     key_info: dict = Depends(require_api_key),
 ) -> DecayResponse:
-    """Run a decay cycle for a user.
+    """Run a decay cycle for a user — prune weak memories.
+
+    Call this periodically — after each session or daily.
+    Engram will intelligently forget low-value memories.
 
     Rate limit: 10 requests per minute per IP.
     """
     try:
         user_id = sanitize_user_id(body.user_id)
     except ValueError as e:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e))
 
     state     = get_user_state(user_id)
@@ -238,7 +280,6 @@ async def get_memories(
     try:
         user_id = sanitize_user_id(user_id)
     except ValueError as e:
-        from fastapi import HTTPException
         raise HTTPException(status_code=400, detail=str(e))
 
     state    = get_user_state(user_id)
@@ -252,4 +293,93 @@ async def get_memories(
         "active":   active,
         "decaying": decaying,
         "pruned":   pruned,
+    }
+@router.get("/timeline/{user_id}")
+@limiter.limit("60/minute")
+async def timeline(
+    request:  Request,
+    user_id:  str,
+    key_info: dict = Depends(require_api_key),
+) -> dict:
+    """Get a full timeline summary of memories by time period.
+
+    Returns top memories from each non-empty time period —
+    today, this week, last week, this month, last month, etc.
+
+    Useful for understanding the full arc of a user's context
+    and how their priorities have changed over time.
+    """
+    try:
+        user_id = sanitize_user_id(user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    state    = get_user_state(user_id)
+    reasoner = TemporalReasoner()
+    timeline = reasoner.summarise_timeline(state.nodes, top_k=3)
+
+    return {
+        "user_id":  user_id,
+        "timeline": {
+            period: [
+                {
+                    "id":        r.node.id,
+                    "content":   r.node.content,
+                    "days_ago":  round(r.days_ago, 1),
+                    "relevance": round(r.relevance, 3),
+                }
+                for r in results
+            ]
+            for period, results in timeline.items()
+        },
+    }
+
+@router.post("/predict")
+@limiter.limit("60/minute")
+async def predict(
+    request:  Request,
+    body:     QueryRequest,
+    key_info: dict = Depends(require_api_key),
+) -> dict:
+    """Predict relevant memories based on current conversation context.
+
+    Unlike /query which responds to explicit questions,
+    /predict watches the conversation context and surfaces
+    memories the user is likely to need — before they ask.
+
+    Pass recent conversation messages as the query.
+    Engram will proactively surface relevant personal context.
+
+    Rate limit: 60 requests per minute per IP.
+    """
+    try:
+        user_id = sanitize_user_id(body.user_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    state     = get_user_state(user_id)
+    predictor = PredictiveMemory()
+    results   = predictor.predict(
+        body.query,
+        state.nodes,
+        state.graph,
+        top_k=body.top_k,
+    )
+
+    memories = [
+        {
+            "id":               r.node.id,
+            "content":          r.node.content,
+            "memory_type":      r.node.memory_type.value,
+            "prediction_score": r.prediction_score,
+            "reason":           r.reason,
+        }
+        for r in results
+    ]
+
+    return {
+        "user_id":  user_id,
+        "context":  body.query,
+        "memories": memories,
+        "count":    len(memories),
     }

@@ -27,12 +27,12 @@ class NodeResult:
 
 @dataclass
 class DecayReport:
-    run_at:          datetime          = field(default_factory=lambda: datetime.now(timezone.utc))
-    total_evaluated: int               = 0
-    total_active:    int               = 0
-    total_decaying:  int               = 0
-    total_pruned:    int               = 0
-    results:         list[NodeResult]  = field(default_factory=list)
+    run_at:          datetime         = field(default_factory=lambda: datetime.now(timezone.utc))
+    total_evaluated: int              = 0
+    total_active:    int              = 0
+    total_decaying:  int              = 0
+    total_pruned:    int              = 0
+    results:         list[NodeResult] = field(default_factory=list)
 
     def summary(self) -> str:
         return (
@@ -45,13 +45,29 @@ class DecayReport:
 
 
 class DecayScheduler:
+    """Runs periodic scoring and intelligent pruning over a MemoryStore.
+
+    Supports optional significance scoring — when a SignificanceScorer
+    is provided, significance is read from node metadata and passed
+    to the scoring engine for brain-inspired retention decisions.
+
+    Archived nodes are NEVER pruned regardless of score.
+
+    Usage
+    -----
+        store     = InMemoryStore()
+        graph     = GraphManager()
+        scheduler = DecayScheduler(store, graph)
+        report    = scheduler.run()
+        print(report.summary())
+    """
 
     def __init__(
         self,
-        store:          MemoryStore,
-        graph:          GraphManager,
-        config:         ScoringConfig | None = None,
-        dry_run:        bool                 = False,
+        store:   MemoryStore,
+        graph:   GraphManager,
+        config:  ScoringConfig | None = None,
+        dry_run: bool                 = False,
     ) -> None:
         self._store   = store
         self._graph   = graph
@@ -60,6 +76,7 @@ class DecayScheduler:
         self._dry_run = dry_run
 
     def run(self) -> DecayReport:
+        """Execute one decay cycle and return a DecayReport."""
         report = DecayReport()
         nodes  = self._store.get_all()
 
@@ -78,11 +95,18 @@ class DecayScheduler:
             previous_status = node.status
             connectivity    = connectivity_map.get(node.id, 0.0)
 
+            # Read significance from metadata if available
+            # Falls back to 0.5 — neutral — if not set
+            significance = float(
+                node.metadata.get("significance", 0.5)
+            )
+            significance = max(0.0, min(1.0, significance))
+
             if self._dry_run:
-                new_score  = self._engine.score(node, connectivity)
+                new_score  = self._engine.score(node, connectivity, significance)
                 new_status = previous_status
             else:
-                new_score  = self._engine.apply(node, connectivity)
+                new_score  = self._engine.apply(node, connectivity, significance)
                 new_status = node.status
 
             pruned = new_score <= self._config.prune_threshold
@@ -114,6 +138,7 @@ class DecayScheduler:
         return report
 
     def preview(self) -> DecayReport:
+        """Run without persisting changes — safe inspection mode."""
         original      = self._dry_run
         self._dry_run = True
         try:

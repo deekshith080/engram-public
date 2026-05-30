@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 from typing import Iterable
+
 import networkx as nx
+
 from engram.core.memory import MemoryNode
 
 
 class RelationshipType:
-    """Constants for labelling edge types between memory nodes."""
     SEMANTIC   = "semantic"
     TEMPORAL   = "temporal"
     CAUSAL     = "causal"
@@ -26,8 +28,6 @@ class GraphManager:
     def __init__(self) -> None:
         self._graph: nx.DiGraph = nx.DiGraph()
 
-    # Node management
-
     def add_node(self, node: MemoryNode) -> None:
         """Register a memory node. Safe to call multiple times — idempotent."""
         if not self._graph.has_node(node.id):
@@ -41,7 +41,12 @@ class GraphManager:
     def has_node(self, node_id: str) -> bool:
         return self._graph.has_node(node_id)
 
-    # Edge management
+    def has_edge(self, source_id: str, target_id: str) -> bool:
+        """Check if an edge exists in either direction."""
+        return (
+            self._graph.has_edge(source_id, target_id)
+            or self._graph.has_edge(target_id, source_id)
+        )
 
     def add_edge(
         self,
@@ -80,36 +85,25 @@ class GraphManager:
         predecessors = set(self._graph.predecessors(node_id))
         return list(successors | predecessors)
 
-    # Connectivity scoring
-
     def raw_connectivity(self, node_id: str) -> int:
         """Total degree (in + out) of a node."""
         self._assert_exists(node_id)
         return self._graph.degree(node_id)
 
     def normalised_connectivity(self, node_id: str) -> float:
-        """Connectivity score normalised to [0, 1].
-
-        Capped at 1.0 — handles large graphs where a node can have
-        more connections than number_of_nodes - 1 due to multi-edges.
-        """
+        """Connectivity score normalised to [0, 1]."""
         self._assert_exists(node_id)
-        total_nodes = self._graph.number_of_nodes()
+        total_nodes  = self._graph.number_of_nodes()
         if total_nodes <= 1:
             return 0.0
         max_possible = max(total_nodes - 1, 1)
-        raw = self._graph.degree(node_id) / max_possible
+        raw          = self._graph.degree(node_id) / max_possible
         return min(raw, 1.0)
 
     def normalised_connectivity_batch(
         self, node_ids: list[str]
     ) -> dict[str, float]:
-        """Compute normalised connectivity for multiple nodes efficiently.
-
-        Computes max_possible once — more efficient than calling
-        normalised_connectivity in a loop for large graphs.
-        Always returns values in [0, 1].
-        """
+        """Compute normalised connectivity for multiple nodes efficiently."""
         if not node_ids:
             return {}
         max_possible = max(self._graph.number_of_nodes() - 1, 1)
@@ -118,8 +112,6 @@ class GraphManager:
             for nid in node_ids
             if self._graph.has_node(nid)
         }
-
-    # Analytics
 
     def most_connected(self, top_n: int = 10) -> list[tuple[str, int]]:
         """Return top_n nodes by raw degree, descending."""
@@ -145,9 +137,6 @@ class GraphManager:
             "edges":   self.edge_count(),
             "orphans": len(self.orphan_node_ids()),
         }
-
-
-    # Internal
 
     def _assert_exists(self, node_id: str) -> None:
         if not self._graph.has_node(node_id):

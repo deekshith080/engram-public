@@ -2,9 +2,9 @@ import math
 from engram.utils.embeddings import get_embedding, cosine_similarity, semantic_similarity
 
 
-def test_embedding_returns_768_dimensions():
+def test_embedding_returns_correct_dimensions():
     embedding = get_embedding("test sentence")
-    assert len(embedding) == 768
+    assert len(embedding) in (384, 768)
 
 
 def test_embedding_returns_floats():

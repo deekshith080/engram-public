@@ -44,10 +44,22 @@ class MemoryNode(BaseModel):
             raise ValueError("Memory content cannot be blank.")
         return v.strip()
 
-    def touch(self) -> None:
-        """Call this every time a memory is accessed."""
+    def touch(self, boost: float = 0.02) -> None:
+        """Call this every time a memory is accessed.
+
+        Implements the testing effect — retrieval strengthens memory.
+        Each recall boosts the composite score slightly.
+        Boost diminishes with each access (saturation curve).
+        Score is always capped at 1.0.
+        """
         self.last_accessed_at = datetime.now(timezone.utc)
-        self.access_count += 1
+        self.access_count    += 1
+
+        # Testing effect — recalled memories get stronger
+        # Boost diminishes with access count — diminishing returns
+        saturation = 1.0 / (1.0 + 0.1 * self.access_count)
+        effective_boost = boost * saturation
+        self.composite_score = min(1.0, self.composite_score + effective_boost)
 
     def pin(self) -> None:
         """Permanently protect this memory from being pruned."""
