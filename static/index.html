@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engram — AI Memory That Forgets Intelligently</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0a0a0a;
+    color: #e0e0e0;
+    line-height: 1.6;
+  }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    padding: 60px 0 40px;
+    border-bottom: 1px solid #1e1e1e;
+  }
+
+  .logo {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: #4ade80; }
+
+  .tagline {
+    margin-top: 12px;
+    font-size: 16px;
+    color: #888;
+  }
+
+  section { padding: 48px 0; border-bottom: 1px solid #1e1e1e; }
+
+  h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 20px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 24px;
+  }
+
+  .stat {
+    background: #111;
+    border: 1px solid #1e1e1e;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #4ade80;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: #666;
+    margin-top: 4px;
+  }
+
+  .endpoints {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .endpoint {
+    background: #111;
+    border: 1px solid #1e1e1e;
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .method {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    min-width: 44px;
+    text-align: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .method.post { background: #166534; color: #4ade80; }
+  .method.get  { background: #1e3a5f; color: #60a5fa; }
+
+  .endpoint-path {
+    font-family: 'SF Mono', monospace;
+    font-size: 14px;
+    color: #fff;
+  }
+
+  .endpoint-desc {
+    font-size: 13px;
+    color: #666;
+    margin-top: 2px;
+  }
+
+  .demo-box {
+    background: #111;
+    border: 1px solid #1e1e1e;
+    border-radius: 8px;
+    padding: 24px;
+    margin-top: 8px;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  input, textarea {
+    background: #0a0a0a;
+    border: 1px solid #2e2e2e;
+    border-radius: 6px;
+    color: #e0e0e0;
+    font-size: 14px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+  }
+
+  input:focus, textarea:focus { border-color: #4ade80; }
+
+  input.full { flex: 1; min-width: 200px; }
+
+  textarea {
+    width: 100%;
+    height: 80px;
+    resize: vertical;
+  }
+
+  button {
+    background: #4ade80;
+    color: #0a0a0a;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+
+  button:hover { background: #22c55e; }
+  button:disabled { background: #1a3a1a; color: #444; cursor: not-allowed; }
+
+  .response-box {
+    background: #0a0a0a;
+    border: 1px solid #2e2e2e;
+    border-radius: 6px;
+    padding: 16px;
+    font-family: 'SF Mono', monospace;
+    font-size: 13px;
+    color: #4ade80;
+    min-height: 60px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin-top: 12px;
+    display: none;
+  }
+
+  .response-box.visible { display: block; }
+  .response-box.error { color: #f87171; }
+
+  .key-box {
+    background: #0a0a0a;
+    border: 1px solid #4ade80;
+    border-radius: 6px;
+    padding: 16px;
+    font-family: 'SF Mono', monospace;
+    font-size: 13px;
+    color: #4ade80;
+    margin-top: 12px;
+    display: none;
+    word-break: break-all;
+  }
+
+  .key-box.visible { display: block; }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .tab {
+    background: #111;
+    border: 1px solid #2e2e2e;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    color: #888;
+    transition: all 0.2s;
+  }
+
+  .tab.active {
+    background: #166534;
+    border-color: #4ade80;
+    color: #4ade80;
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 6px;
+  }
+
+  footer {
+    padding: 32px 0;
+    text-align: center;
+    font-size: 13px;
+    color: #444;
+  }
+
+  footer a { color: #666; text-decoration: none; }
+  footer a:hover { color: #4ade80; }
+
+  .mission {
+    font-size: 13px;
+    color: #444;
+    font-style: italic;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <header>
+    <div class="logo">engram<span>.</span></div>
+    <div class="tagline">AI memory that forgets intelligently. Same accuracy. 72% less storage.</div>
+    <div class="mission">Memory belongs to the user. Engram is the guardian, not the owner.</div>
+  </header>
+
+  <section>
+    <h2>Benchmark Results</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value">1.00</div>
+        <div class="stat-label">Personalization accuracy</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">28%</div>
+        <div class="stat-label">Memory retained after decay</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">0.94</div>
+        <div class="stat-label">Forgetting quality score</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>API Endpoints</h2>
+    <div class="endpoints">
+      <div class="endpoint">
+        <span class="method post">POST</span>
+        <div>
+          <div class="endpoint-path">/v1/ingest</div>
+          <div class="endpoint-desc">Store memories — splits, scores, and persists automatically</div>
+        </div>
+      </div>
+      <div class="endpoint">
+        <span class="method post">POST</span>
+        <div>
+          <div class="endpoint-path">/v1/query</div>
+          <div class="endpoint-desc">Hybrid retrieval — FAISS semantic + BM25 lexical + graph</div>
+        </div>
+      </div>
+      <div class="endpoint">
+        <span class="method post">POST</span>
+        <div>
+          <div class="endpoint-path">/v1/recall</div>
+          <div class="endpoint-desc">Associative cascade — follows narrative threads through graph</div>
+        </div>
+      </div>
+      <div class="endpoint">
+        <span class="method post">POST</span>
+        <div>
+          <div class="endpoint-path">/v1/predict</div>
+          <div class="endpoint-desc">Predictive memory — surfaces relevant context before asked</div>
+        </div>
+      </div>
+      <div class="endpoint">
+        <span class="method post">POST</span>
+        <div>
+          <div class="endpoint-path">/v1/decay</div>
+          <div class="endpoint-desc">Intelligent forgetting — prune low-value memories</div>
+        </div>
+      </div>
+      <div class="endpoint">
+        <span class="method get">GET</span>
+        <div>
+          <div class="endpoint-path">/v1/timeline/{user_id}</div>
+          <div class="endpoint-desc">Temporal reasoning — memories organised by time period</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Try It Live</h2>
+    <div class="demo-box">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('ingest')">Ingest</div>
+        <div class="tab" onclick="switchTab('query')">Query</div>
+        <div class="tab" onclick="switchTab('recall')">Recall</div>
+      </div>
+
+      <div class="tab-content active" id="tab-ingest">
+        <div class="label">API Key</div>
+        <div class="input-row">
+          <input type="text" id="ingest-key" class="full" placeholder="engram_your_key" />
+        </div>
+        <div class="label">User ID</div>
+        <div class="input-row">
+          <input type="text" id="ingest-user" class="full" placeholder="user-123" value="demo-user" />
+        </div>
+        <div class="label">Content</div>
+        <textarea id="ingest-content" placeholder="I prefer Python and I am building an AI memory system called Engram"></textarea>
+        <div class="input-row" style="margin-top:12px">
+          <button onclick="doIngest()">Ingest Memory</button>
+        </div>
+        <div class="response-box" id="ingest-response"></div>
+      </div>
+
+      <div class="tab-content" id="tab-query">
+        <div class="label">API Key</div>
+        <div class="input-row">
+          <input type="text" id="query-key" class="full" placeholder="engram_your_key" />
+        </div>
+        <div class="label">User ID</div>
+        <div class="input-row">
+          <input type="text" id="query-user" class="full" placeholder="user-123" value="demo-user" />
+        </div>
+        <div class="label">Query</div>
+        <div class="input-row">
+          <input type="text" id="query-text" class="full" placeholder="what does this user prefer?" />
+          <button onclick="doQuery()">Query</button>
+        </div>
+        <div class="response-box" id="query-response"></div>
+      </div>
+
+      <div class="tab-content" id="tab-recall">
+        <div class="label">API Key</div>
+        <div class="input-row">
+          <input type="text" id="recall-key" class="full" placeholder="engram_your_key" />
+        </div>
+        <div class="label">User ID</div>
+        <div class="input-row">
+          <input type="text" id="recall-user" class="full" placeholder="user-123" value="demo-user" />
+        </div>
+        <div class="label">Query</div>
+        <div class="input-row">
+          <input type="text" id="recall-text" class="full" placeholder="why did the user start this project?" />
+          <button onclick="doRecall()">Recall</button>
+        </div>
+        <div class="response-box" id="recall-response"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Get API Access</h2>
+    <div class="demo-box">
+      <p style="color:#888; font-size:14px; margin-bottom:16px">
+        Enter your email to request an API key. We'll respond within 24 hours.
+      </p>
+      <div class="input-row">
+        <input type="email" id="request-email" class="full" placeholder="you@example.com" />
+        <button onclick="requestKey()">Request Access</button>
+      </div>
+      <div class="key-box" id="key-response"></div>
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      <a href="https://github.com/deekshith080/engram-public" target="_blank">GitHub</a>
+      &nbsp;·&nbsp;
+      <a href="/docs" target="_blank">API Docs</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:cdeekshith1@gmail.com">Contact</a>
+    </div>
+    <div style="margin-top:8px; color:#333">
+      Built by Deekshith — cdeekshith1@gmail.com
+    </div>
+  </footer>
+
+</div>
+
+<script>
+const API = '';
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelector(`[onclick="switchTab('${name}')"]`).classList.add('active');
+  document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+function showResponse(id, data, isError) {
+  const el = document.getElementById(id);
+  el.textContent = JSON.stringify(data, null, 2);
+  el.className = 'response-box visible' + (isError ? ' error' : '');
+}
+
+async function doIngest() {
+  const key     = document.getElementById('ingest-key').value.trim();
+  const user_id = document.getElementById('ingest-user').value.trim();
+  const content = document.getElementById('ingest-content').value.trim();
+
+  if (!key || !user_id || !content) {
+    showResponse('ingest-response', {error: 'Please fill in all fields'}, true);
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/v1/ingest`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+      body:    JSON.stringify({ user_id, content }),
+    });
+    const data = await res.json();
+    showResponse('ingest-response', data, !res.ok);
+  } catch (e) {
+    showResponse('ingest-response', { error: e.message }, true);
+  }
+}
+
+async function doQuery() {
+  const key     = document.getElementById('query-key').value.trim();
+  const user_id = document.getElementById('query-user').value.trim();
+  const query   = document.getElementById('query-text').value.trim();
+
+  if (!key || !user_id || !query) {
+    showResponse('query-response', {error: 'Please fill in all fields'}, true);
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/v1/query`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+      body:    JSON.stringify({ user_id, query, top_k: 5 }),
+    });
+    const data = await res.json();
+    showResponse('query-response', data, !res.ok);
+  } catch (e) {
+    showResponse('query-response', { error: e.message }, true);
+  }
+}
+
+async function doRecall() {
+  const key     = document.getElementById('recall-key').value.trim();
+  const user_id = document.getElementById('recall-user').value.trim();
+  const query   = document.getElementById('recall-text').value.trim();
+
+  if (!key || !user_id || !query) {
+    showResponse('recall-response', {error: 'Please fill in all fields'}, true);
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API}/v1/recall`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
+      body:    JSON.stringify({ user_id, query, top_k: 5 }),
+    });
+    const data = await res.json();
+    showResponse('recall-response', data, !res.ok);
+  } catch (e) {
+    showResponse('recall-response', { error: e.message }, true);
+  }
+}
+
+function requestKey() {
+  const email = document.getElementById('request-email').value.trim();
+  if (!email || !email.includes('@')) {
+    document.getElementById('key-response').textContent = 'Please enter a valid email address.';
+    document.getElementById('key-response').className = 'key-box visible';
+    return;
+  }
+  document.getElementById('key-response').textContent =
+    `Thanks! We'll send your API key to ${email} within 24 hours.\n\nIn the meantime you can explore the API docs at /docs`;
+  document.getElementById('key-response').className = 'key-box visible';
+}
+</script>
+
+</body>
+</html>
