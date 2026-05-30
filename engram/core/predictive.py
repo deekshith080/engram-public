@@ -1,4 +1,4 @@
-# PRIVATE — core IP, do not share or open source
+
 from __future__ import annotations
 
 from dataclasses import dataclass
