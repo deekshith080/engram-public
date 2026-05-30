@@ -503,16 +503,42 @@ async function doRecall() {
   }
 }
 
-function requestKey() {
+async function requestKey() {
   const email = document.getElementById('request-email').value.trim();
   if (!email || !email.includes('@')) {
     document.getElementById('key-response').textContent = 'Please enter a valid email address.';
     document.getElementById('key-response').className = 'key-box visible';
     return;
   }
-  document.getElementById('key-response').textContent =
-    `Thanks! We'll send your API key to ${email} within 24 hours.\n\nIn the meantime you can explore the API docs at /docs`;
-  document.getElementById('key-response').className = 'key-box visible';
+
+  const btn = document.querySelector('#request-email + button') ||
+              document.querySelector('button[onclick="requestKey()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+
+  try {
+    const res  = await fetch('/v1/request-key', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email }),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      document.getElementById('key-response').textContent =
+        `✓ API key sent to ${email}\n\nCheck your inbox — it may take a minute.\nCheck spam if you don't see it.`;
+      document.getElementById('key-response').className = 'key-box visible';
+    } else {
+      document.getElementById('key-response').textContent =
+        `Error: ${data.detail || 'Something went wrong. Email cdeekshith1@gmail.com'}`;
+      document.getElementById('key-response').className = 'key-box visible';
+    }
+  } catch (e) {
+    document.getElementById('key-response').textContent =
+      'Network error. Please try again or email cdeekshith1@gmail.com';
+    document.getElementById('key-response').className = 'key-box visible';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Request Access'; }
+  }
 }
 </script>
 

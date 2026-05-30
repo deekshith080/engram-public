@@ -13,3 +13,4 @@ sentence-transformers
 torch
 slowapi
 rank-bm25
+psycopg2-binaryresend
